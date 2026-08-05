@@ -4,6 +4,20 @@ A lightweight Windows system tray app that shows how far through the month you s
 
 The tray displays a single number representing the expected percentage of the month completed. Its color shows whether your actual Copilot usage is under, near, or over that pace.
 
+## Screenshots
+
+### Default appearance
+
+![Default tray appearance](img/default.png)
+
+### Hover tooltip
+
+![Tray icon hover tooltip](img/hover.png)
+
+### Right-click menu
+
+![Tray icon right-click menu](img/right-click.png)
+
 ## How it works
 
 The displayed number is the expected quota usage percentage for the current point in the month.
@@ -66,7 +80,7 @@ gh api /copilot_internal/user --jq '.quota_snapshots.premium_interactions'
 From the project directory:
 
 ```powershell
-.uild.ps1
+.\build.ps1
 ```
 
 The compiled app will be written to:
@@ -139,7 +153,3 @@ This project uses the undocumented GitHub endpoint:
 ```
 
 Because it is internal, GitHub may change or remove it without notice.
-
-## License
-
-Add the license of your choice before publishing the repository.
