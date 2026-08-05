@@ -115,9 +115,9 @@ internal sealed class WorkdayProgressContext : ApplicationContext
 
             Color iconColor = GetPaceColor(paceStatus);
 
-            // 10.90 displays as 10.
-            int displayedNumber = (int)Math.Floor(
-                usage.PercentUsed + 0.000001);
+            int displayedNumber = (int)Math.Round(
+                workdayPace.PercentElapsed,
+                MidpointRounding.AwayFromZero);
 
             Icon newIcon = NumberIcon.Create(
                 displayedNumber,
