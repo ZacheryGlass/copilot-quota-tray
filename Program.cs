@@ -31,6 +31,7 @@ internal sealed class WorkdayProgressContext : ApplicationContext
     private readonly ToolStripMenuItem _usageMenuItem;
     private readonly ToolStripMenuItem _workMonthMenuItem;
     private readonly ToolStripMenuItem _paceMenuItem;
+    private readonly ToolStripMenuItem _weekdaysOnlyMenuItem;
     private readonly System.Windows.Forms.Timer _timer;
 
     private Icon? _currentIcon;
@@ -55,6 +56,22 @@ internal sealed class WorkdayProgressContext : ApplicationContext
             Visible = false
         };
 
+        AppSettings settings = AppSettings.Load();
+
+        _weekdaysOnlyMenuItem = new ToolStripMenuItem("Weekdays only")
+        {
+            CheckOnClick = true,
+            Checked = settings.WeekdaysOnly
+        };
+
+        _weekdaysOnlyMenuItem.CheckedChanged += async (_, _) =>
+        {
+            AppSettings.Save(new AppSettings(
+                _weekdaysOnlyMenuItem.Checked));
+
+            await RefreshAsync();
+        };
+
         var refreshMenuItem = new ToolStripMenuItem("Refresh now");
         refreshMenuItem.Click += async (_, _) =>
         {
@@ -71,6 +88,8 @@ internal sealed class WorkdayProgressContext : ApplicationContext
         menu.Items.Add(_usageMenuItem);
         menu.Items.Add(_workMonthMenuItem);
         menu.Items.Add(_paceMenuItem);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(_weekdaysOnlyMenuItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(refreshMenuItem);
         menu.Items.Add(exitMenuItem);
@@ -127,7 +146,9 @@ internal sealed class WorkdayProgressContext : ApplicationContext
         try
         {
             CopilotUsage usage = await CopilotClient.GetUsageAsync();
-            WorkdayPace workdayPace = WorkdayCalendar.Calculate(DateTime.Today);
+            WorkdayPace workdayPace = WorkdayCalendar.Calculate(
+                DateTime.Today,
+                weekdaysOnly: _weekdaysOnlyMenuItem.Checked);
 
             PaceStatus paceStatus = DeterminePaceStatus(
                 usage.PercentUsed,
@@ -165,8 +186,12 @@ internal sealed class WorkdayProgressContext : ApplicationContext
                 $"{usage.PercentUsed:F1}% used " +
                 $"({usage.CreditsUsed:N0}/{usage.Entitlement:N0} credits)";
 
+            string monthDescription = _weekdaysOnlyMenuItem.Checked
+                ? "through the work month"
+                : "through the month";
+
             _workMonthMenuItem.Text =
-                $"{workdayPace.PercentElapsed:F1}% through the work month " +
+                $"{workdayPace.PercentElapsed:F1}% {monthDescription} " +
                 $"({workdayPace.PassedWorkdays}/{workdayPace.TotalWorkdays})";
 
             _paceMenuItem.Text =
@@ -442,7 +467,9 @@ internal static class CopilotClient
 
 internal static class WorkdayCalendar
 {
-    public static WorkdayPace Calculate(DateTime today)
+    public static WorkdayPace Calculate(
+        DateTime today,
+        bool weekdaysOnly)
     {
         DateTime firstDay =
             new(today.Year, today.Month, 1);
@@ -450,26 +477,31 @@ internal static class WorkdayCalendar
         DateTime lastDay =
             firstDay.AddMonths(1).AddDays(-1);
 
-        int totalWorkdays =
-            CountWorkdays(firstDay, lastDay);
+        int totalDays = CountEligibleDays(
+            firstDay,
+            lastDay,
+            weekdaysOnly);
 
-        // Includes today when today is Monday through Friday.
-        int passedWorkdays =
-            CountWorkdays(firstDay, today.Date);
+        // Includes today when it is eligible under the selected mode.
+        int passedDays = CountEligibleDays(
+            firstDay,
+            today.Date,
+            weekdaysOnly);
 
-        double percentElapsed = totalWorkdays == 0
+        double percentElapsed = totalDays == 0
             ? 0.0
-            : passedWorkdays * 100.0 / totalWorkdays;
+            : passedDays * 100.0 / totalDays;
 
         return new WorkdayPace(
-            passedWorkdays,
-            totalWorkdays,
+            passedDays,
+            totalDays,
             percentElapsed);
     }
 
-    private static int CountWorkdays(
+    private static int CountEligibleDays(
         DateTime start,
-        DateTime end)
+        DateTime end,
+        bool weekdaysOnly)
     {
         if (end < start)
         {
@@ -482,14 +514,19 @@ internal static class WorkdayCalendar
              date <= end.Date;
              date = date.AddDays(1))
         {
-            if (date.DayOfWeek is not DayOfWeek.Saturday
-                and not DayOfWeek.Sunday)
+            if (!weekdaysOnly || IsWeekday(date))
             {
                 count++;
             }
         }
 
         return count;
+    }
+
+    private static bool IsWeekday(DateTime date)
+    {
+        return date.DayOfWeek is not DayOfWeek.Saturday
+            and not DayOfWeek.Sunday;
     }
 }
 
@@ -641,6 +678,66 @@ internal static class NumberIcon
         catch (ArgumentException)
         {
             return new FontFamily("Segoe UI");
+        }
+    }
+}
+
+
+internal sealed record AppSettings(bool WeekdaysOnly)
+{
+    private static string SettingsPath =>
+        Path.Combine(
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData),
+            "CopilotPace",
+            "settings.json");
+
+    public static AppSettings Load()
+    {
+        try
+        {
+            if (!File.Exists(SettingsPath))
+            {
+                return new AppSettings(WeekdaysOnly: true);
+            }
+
+            string json = File.ReadAllText(SettingsPath);
+
+            AppSettings? settings =
+                JsonSerializer.Deserialize<AppSettings>(json);
+
+            return settings ??
+                new AppSettings(WeekdaysOnly: true);
+        }
+        catch
+        {
+            return new AppSettings(WeekdaysOnly: true);
+        }
+    }
+
+    public static void Save(AppSettings settings)
+    {
+        try
+        {
+            string? directory = Path.GetDirectoryName(SettingsPath);
+
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            string json = JsonSerializer.Serialize(
+                settings,
+                new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+
+            File.WriteAllText(SettingsPath, json);
+        }
+        catch
+        {
+            // The toggle still works for the current session.
         }
     }
 }
