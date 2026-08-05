@@ -28,7 +28,9 @@ internal sealed class WorkdayProgressContext : ApplicationContext
     private const double YellowBandPercentagePoints = 3.0;
 
     private readonly NotifyIcon _trayIcon;
-    private readonly ToolStripMenuItem _statusMenuItem;
+    private readonly ToolStripMenuItem _usageMenuItem;
+    private readonly ToolStripMenuItem _workMonthMenuItem;
+    private readonly ToolStripMenuItem _paceMenuItem;
     private readonly System.Windows.Forms.Timer _timer;
 
     private Icon? _currentIcon;
@@ -36,9 +38,21 @@ internal sealed class WorkdayProgressContext : ApplicationContext
 
     public WorkdayProgressContext()
     {
-        _statusMenuItem = new ToolStripMenuItem("Loading Copilot usage...")
+        _usageMenuItem = new ToolStripMenuItem("Loading Copilot usage...")
         {
             Enabled = false
+        };
+
+        _workMonthMenuItem = new ToolStripMenuItem
+        {
+            Enabled = false,
+            Visible = false
+        };
+
+        _paceMenuItem = new ToolStripMenuItem
+        {
+            Enabled = false,
+            Visible = false
         };
 
         var refreshMenuItem = new ToolStripMenuItem("Refresh now");
@@ -54,7 +68,9 @@ internal sealed class WorkdayProgressContext : ApplicationContext
         };
 
         var menu = new ContextMenuStrip();
-        menu.Items.Add(_statusMenuItem);
+        menu.Items.Add(_usageMenuItem);
+        menu.Items.Add(_workMonthMenuItem);
+        menu.Items.Add(_paceMenuItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(refreshMenuItem);
         menu.Items.Add(exitMenuItem);
@@ -75,7 +91,11 @@ internal sealed class WorkdayProgressContext : ApplicationContext
             await RefreshAsync();
 
             _trayIcon.BalloonTipTitle = "GitHub Copilot usage";
-            _trayIcon.BalloonTipText = _statusMenuItem.Text;
+            _trayIcon.BalloonTipText = string.Join(
+                Environment.NewLine,
+                _usageMenuItem.Text,
+                _workMonthMenuItem.Text,
+                _paceMenuItem.Text);
             _trayIcon.ShowBalloonTip(3000);
         };
 
@@ -141,12 +161,19 @@ internal sealed class WorkdayProgressContext : ApplicationContext
                 _ => "unknown"
             };
 
-            _statusMenuItem.Text =
+            _usageMenuItem.Text =
                 $"{usage.PercentUsed:F1}% used " +
-                $"({usage.CreditsUsed:N0}/{usage.Entitlement:N0} credits) — " +
+                $"({usage.CreditsUsed:N0}/{usage.Entitlement:N0} credits)";
+
+            _workMonthMenuItem.Text =
                 $"{workdayPace.PercentElapsed:F1}% through the work month " +
-                $"({workdayPace.PassedWorkdays}/{workdayPace.TotalWorkdays}) — " +
+                $"({workdayPace.PassedWorkdays}/{workdayPace.TotalWorkdays})";
+
+            _paceMenuItem.Text =
                 $"{Math.Abs(difference):F1} points {paceDescription}";
+
+            _workMonthMenuItem.Visible = true;
+            _paceMenuItem.Visible = true;
 
             // Keep this short because Windows limits tray tooltip length.
             _trayIcon.Text =
@@ -154,9 +181,11 @@ internal sealed class WorkdayProgressContext : ApplicationContext
         }
         catch (Exception exception)
         {
-            // Keep the last successfully generated number visible.
-            _statusMenuItem.Text =
+            _usageMenuItem.Text =
                 $"Refresh failed: {exception.Message}";
+
+            _workMonthMenuItem.Visible = false;
+            _paceMenuItem.Visible = false;
 
             _trayIcon.Text = "Copilot usage refresh failed";
         }
