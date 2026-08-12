@@ -1,4 +1,4 @@
-# copilot-quota-tray
+# GitHub Copilot Quota Tray
 
 A lightweight Windows system tray app that shows how far through the month you should be with your GitHub Copilot quota.
 
@@ -8,17 +8,24 @@ The tray displays a single number representing the expected percentage of the mo
 
 ### Default appearance
 
-![Default tray appearance](img/default.png)
+<kbd>
+  <img src="img/default.png" alt="Default tray appearance">
+</kbd>
 
 ### Hover tooltip
 
-![Tray icon hover tooltip](img/hover.png)
+<kbd>
+  <img src="img/hover.png" alt="Tray icon hover tooltip">
+</kbd>
 
 ### Right-click menu
 
-![Tray icon right-click menu](img/right-click.png)
+<kbd>
+  <img src="img/right-click.png" alt="Tray icon right-click menu">
+</kbd>
 
 ## How it works
+
 
 The displayed number is the expected quota usage percentage for the current point in the month.
 
