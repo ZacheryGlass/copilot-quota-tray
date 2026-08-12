@@ -39,7 +39,7 @@ jobs:
       - name: Publish self-contained app
         shell: pwsh
         run: |
-          dotnet publish .\WorkdayProgress.csproj `
+          dotnet publish .\CopilotQuotaTray.csproj `
             --configuration Release `
             --runtime win-x64 `
             --self-contained true `

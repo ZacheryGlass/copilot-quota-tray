@@ -14,7 +14,7 @@ Remove-Item ".\publish" `
     -Force `
     -ErrorAction SilentlyContinue
 
-dotnet publish ".\WorkdayProgress.csproj" `
+dotnet publish ".\CopilotQuotaTray.csproj" `
     -c Release `
     --self-contained false `
     -p:PublishSingleFile=false `
