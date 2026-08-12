@@ -66,9 +66,11 @@ The app refreshes Copilot usage every five minutes.
 ## Requirements
 
 - Windows
-- .NET 9 runtime or SDK
 - GitHub CLI (`gh`)
 - An authenticated GitHub CLI session with access to Copilot usage data
+
+The installer includes the .NET runtime. The .NET 9 SDK is only required when
+building the app from source.
 
 Confirm authentication with:
 
@@ -82,7 +84,20 @@ Confirm the Copilot quota endpoint works with:
 gh api /copilot_internal/user --jq '.quota_snapshots.premium_interactions'
 ```
 
-## Build
+## Install
+
+Download `CopilotQuotaTray-Setup.exe` from the latest GitHub release and run it.
+The installer:
+
+- Installs the app for the current user without requiring administrator access.
+- Starts the tray app after installation.
+- Adds the tray app to Windows startup automatically.
+- Adds an uninstaller to the Start menu and Windows Installed Apps list.
+
+Uninstalling stops the tray app and removes its startup shortcut, installed
+files, and saved settings.
+
+## Build from source
 
 From the project directory:
 
@@ -93,22 +108,23 @@ From the project directory:
 The compiled app will be written to:
 
 ```text
-publish\WorkdayProgress.exe
+publish\CopilotQuotaTray.exe
 ```
 
 Run it with:
 
 ```powershell
-.\publish\WorkdayProgress.exe
+.\publish\CopilotQuotaTray.exe
 ```
 
-## Start automatically with Windows
+When installed, the app starts automatically with Windows. Windows may initially
+place the icon in the hidden tray overflow menu.
 
-1. Press `Win+R`.
-2. Enter `shell:startup`.
-3. Create a shortcut to `WorkdayProgress.exe` in that folder.
+## Releases
 
-Windows may initially place the icon in the hidden tray overflow menu.
+Pushing a version tag such as `v1.0.0` runs the release workflow. It builds a
+self-contained Windows app, packages it as `CopilotQuotaTray-Setup.exe`, and
+publishes the installer and its SHA-256 checksum to a GitHub release.
 
 ## Settings
 

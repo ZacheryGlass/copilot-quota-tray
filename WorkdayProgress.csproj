@@ -6,7 +6,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>WorkdayProgress</AssemblyName>
+    <AssemblyName>CopilotQuotaTray</AssemblyName>
   </PropertyGroup>
 
 </Project>

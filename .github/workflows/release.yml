@@ -1,0 +1,91 @@
+name: Release Windows installer
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish installer
+    runs-on: windows-2022
+
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+
+    steps:
+      - name: Check out tag
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Validate tag and set version
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
+            throw "Tag '${{ github.ref_name }}' is not a supported version tag. Use a tag such as v1.0.0."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Publish self-contained app
+        shell: pwsh
+        run: |
+          dotnet publish .\WorkdayProgress.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -p:Version=${{ steps.version.outputs.version }} `
+            --output .\publish
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            throw "Inno Setup compiler was not found at '$iscc'."
+          }
+          & $iscc "/DAppVersion=${{ steps.version.outputs.version }}" ".\installer\CopilotQuotaTray.iss"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Create checksum
+        shell: pwsh
+        run: |
+          $installer = Resolve-Path ".\artifacts\CopilotQuotaTray-Setup.exe"
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  CopilotQuotaTray-Setup.exe" | Set-Content ".\artifacts\CopilotQuotaTray-Setup.sha256" -Encoding ascii
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: CopilotQuotaTray-${{ github.ref_name }}
+          path: |
+            artifacts/CopilotQuotaTray-Setup.exe
+            artifacts/CopilotQuotaTray-Setup.sha256
+          if-no-files-found: error
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            ".\artifacts\CopilotQuotaTray-Setup.exe" `
+            ".\artifacts\CopilotQuotaTray-Setup.sha256" `
+            --verify-tag `
+            --generate-notes `
+            --title "Copilot Quota Tray ${{ github.ref_name }}"

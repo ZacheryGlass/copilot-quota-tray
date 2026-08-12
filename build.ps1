@@ -4,7 +4,7 @@ $env:DOTNET_CLI_TELEMETRY_OPTOUT = "1"
 $env:DOTNET_NOLOGO = "1"
 
 # Stop the old copy so its files can be replaced.
-Get-Process "WorkdayProgress" -ErrorAction SilentlyContinue |
+Get-Process "CopilotQuotaTray" -ErrorAction SilentlyContinue |
     Stop-Process -Force
 
 Start-Sleep -Milliseconds 300
@@ -22,4 +22,4 @@ dotnet publish ".\WorkdayProgress.csproj" `
 
 Write-Host ""
 Write-Host "Built successfully:"
-Write-Host "$PWD\publish\WorkdayProgress.exe"
+Write-Host "$PWD\publish\CopilotQuotaTray.exe"
