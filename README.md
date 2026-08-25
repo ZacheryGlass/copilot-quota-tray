@@ -2,7 +2,8 @@
 
 A lightweight Windows system tray app that shows how far through the month you should be with your GitHub Copilot quota.
 
-The tray displays a single number representing the expected percentage of the month completed. Its color shows whether your actual Copilot usage is under, near, or over that pace.
+The tray displays either expected or actual quota usage. Its color shows whether
+your actual Copilot usage is under, near, or over the expected pace.
 
 ## Screenshots
 
@@ -27,7 +28,9 @@ The tray displays a single number representing the expected percentage of the mo
 ## How it works
 
 
-The displayed number is the expected quota usage percentage for the current point in the month.
+By default, the displayed number is the expected quota usage percentage for the
+current point in the month. Enable **Show actual usage on icon** from the tray
+menu to display the percentage of quota actually used instead.
 
 By default, progress is calculated using Monday through Friday only. You can toggle **Weekdays only** from the tray menu to use every calendar day instead.
 
@@ -53,12 +56,17 @@ Right-click the tray icon to see:
 ```text
 10.9% used (3,254/30,000 credits)
 14.3% through the work month (3/21)
-3.4 points under pace
+Settings >
+Exit
+```
 
+The **Settings** submenu contains:
+
+```text
 ✓ Weekdays only
+  Show actual usage on icon
 
 Refresh now
-Exit
 ```
 
 The app refreshes Copilot usage every five minutes.
@@ -150,7 +158,12 @@ When disabled:
 
 - Every calendar day counts.
 
-The selected setting is saved to:
+The **Show actual usage on icon** option is disabled by default. Enable it to
+show actual quota usage on the icon instead of expected usage. This setting only
+changes the number: the icon color always compares actual usage with expected
+usage to indicate whether usage is under, on, or over pace.
+
+The selected settings are saved to:
 
 ```text
 %LocalAppData%\CopilotPace\settings.json

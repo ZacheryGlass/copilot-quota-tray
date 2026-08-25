@@ -1,3 +1,4 @@
+using System.Text.Json;
 using WorkdayProgress;
 
 var tests = new (string Name, Action Run)[]
@@ -11,7 +12,11 @@ var tests = new (string Name, Action Run)[]
     ("missing quota data", MissingQuotaData),
     ("not signed in", NotSignedIn),
     ("expired credentials", ExpiredCredentials),
-    ("unrelated CLI failure", UnrelatedCliFailure)
+    ("unrelated CLI failure", UnrelatedCliFailure),
+    ("expected icon number", ExpectedIconNumber),
+    ("actual icon number", ActualIconNumber),
+    ("display mode does not change pace", DisplayModeDoesNotChangePace),
+    ("legacy settings default to expected", LegacySettingsDefaultToExpected)
 };
 
 int failures = 0;
@@ -158,6 +163,58 @@ static void UnrelatedCliFailure()
 
     Equal(typeof(InvalidOperationException), exception.GetType());
     Equal(error, exception.Message);
+}
+
+static void ExpectedIconNumber()
+{
+    CopilotUsage usage = MeteredUsage(percentUsed: 90);
+
+    int number = UsageDisplay.GetIconNumber(
+        usage,
+        expectedPercent: 50,
+        showActualUsage: false);
+
+    Equal(50, number);
+}
+
+static void ActualIconNumber()
+{
+    CopilotUsage usage = MeteredUsage(percentUsed: 90);
+
+    int number = UsageDisplay.GetIconNumber(
+        usage,
+        expectedPercent: 50,
+        showActualUsage: true);
+
+    Equal(90, number);
+}
+
+static void DisplayModeDoesNotChangePace()
+{
+    CopilotUsage usage = MeteredUsage(percentUsed: 90);
+
+    Equal(
+        PaceStatus.OverPace,
+        UsageDisplay.DeterminePace(
+            usage.PercentUsed,
+            expectedPercent: 50));
+}
+
+static void LegacySettingsDefaultToExpected()
+{
+    AppSettings? settings = JsonSerializer.Deserialize<AppSettings>(
+        """{"WeekdaysOnly":true}""");
+
+    Equal(false, settings?.ShowActualUsage);
+}
+
+static CopilotUsage MeteredUsage(double percentUsed)
+{
+    return new CopilotUsage(
+        CreditsUsed: percentUsed,
+        Entitlement: 100,
+        PercentUsed: percentUsed,
+        CopilotQuotaStatus.Metered);
 }
 
 static CopilotUsage ParseQuota(string quota)

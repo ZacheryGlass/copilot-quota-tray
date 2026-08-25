@@ -10,6 +10,8 @@
   <ItemGroup>
     <Compile Include="..\CopilotUsage.cs" Link="CopilotUsage.cs" />
     <Compile Include="..\GitHubCliFailure.cs" Link="GitHubCliFailure.cs" />
+    <Compile Include="..\UsageDisplay.cs" Link="UsageDisplay.cs" />
+    <Compile Include="..\AppSettings.cs" Link="AppSettings.cs" />
   </ItemGroup>
 
 </Project>

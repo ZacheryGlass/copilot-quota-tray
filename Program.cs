@@ -4,7 +4,6 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Globalization;
 using System.Runtime.InteropServices;
-using System.Text.Json;
 using System.Windows.Forms;
 
 namespace WorkdayProgress;
@@ -23,15 +22,11 @@ internal sealed class WorkdayProgressContext : ApplicationContext
 {
     private const int RefreshIntervalMilliseconds = 5 * 60 * 1000;
 
-    // Yellow means usage is within this many percentage points of
-    // the percentage of workdays completed.
-    private const double YellowBandPercentagePoints = 3.0;
-
     private readonly NotifyIcon _trayIcon;
     private readonly ToolStripMenuItem _usageMenuItem;
     private readonly ToolStripMenuItem _workMonthMenuItem;
-    private readonly ToolStripMenuItem _paceMenuItem;
     private readonly ToolStripMenuItem _weekdaysOnlyMenuItem;
+    private readonly ToolStripMenuItem _showActualUsageMenuItem;
     private readonly System.Windows.Forms.Timer _timer;
 
     private Icon? _currentIcon;
@@ -50,12 +45,6 @@ internal sealed class WorkdayProgressContext : ApplicationContext
             Visible = false
         };
 
-        _paceMenuItem = new ToolStripMenuItem
-        {
-            Enabled = false,
-            Visible = false
-        };
-
         AppSettings settings = AppSettings.Load();
 
         _weekdaysOnlyMenuItem = new ToolStripMenuItem("Weekdays only")
@@ -66,8 +55,21 @@ internal sealed class WorkdayProgressContext : ApplicationContext
 
         _weekdaysOnlyMenuItem.CheckedChanged += async (_, _) =>
         {
-            AppSettings.Save(new AppSettings(
-                _weekdaysOnlyMenuItem.Checked));
+            SaveSettings();
+
+            await RefreshAsync();
+        };
+
+        _showActualUsageMenuItem = new ToolStripMenuItem(
+            "Show actual usage on icon")
+        {
+            CheckOnClick = true,
+            Checked = settings.ShowActualUsage
+        };
+
+        _showActualUsageMenuItem.CheckedChanged += async (_, _) =>
+        {
+            SaveSettings();
 
             await RefreshAsync();
         };
@@ -78,6 +80,12 @@ internal sealed class WorkdayProgressContext : ApplicationContext
             await RefreshAsync();
         };
 
+        var settingsMenuItem = new ToolStripMenuItem("Settings");
+        settingsMenuItem.DropDownItems.Add(_weekdaysOnlyMenuItem);
+        settingsMenuItem.DropDownItems.Add(_showActualUsageMenuItem);
+        settingsMenuItem.DropDownItems.Add(new ToolStripSeparator());
+        settingsMenuItem.DropDownItems.Add(refreshMenuItem);
+
         var exitMenuItem = new ToolStripMenuItem("Exit");
         exitMenuItem.Click += (_, _) =>
         {
@@ -87,11 +95,7 @@ internal sealed class WorkdayProgressContext : ApplicationContext
         var menu = new ContextMenuStrip();
         menu.Items.Add(_usageMenuItem);
         menu.Items.Add(_workMonthMenuItem);
-        menu.Items.Add(_paceMenuItem);
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(_weekdaysOnlyMenuItem);
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(refreshMenuItem);
+        menu.Items.Add(settingsMenuItem);
         menu.Items.Add(exitMenuItem);
 
         // Temporary neutral icon until the first GitHub request finishes.
@@ -147,9 +151,10 @@ internal sealed class WorkdayProgressContext : ApplicationContext
                 DateTime.Today,
                 weekdaysOnly: _weekdaysOnlyMenuItem.Checked);
 
-            int displayedNumber = (int)Math.Round(
+            int displayedNumber = UsageDisplay.GetIconNumber(
+                usage,
                 workdayPace.PercentElapsed,
-                MidpointRounding.AwayFromZero);
+                _showActualUsageMenuItem.Checked);
 
             if (usage.Status != CopilotQuotaStatus.Metered)
             {
@@ -165,7 +170,6 @@ internal sealed class WorkdayProgressContext : ApplicationContext
                 };
 
                 _workMonthMenuItem.Visible = false;
-                _paceMenuItem.Visible = false;
 
                 _trayIcon.Text = usage.Status switch
                 {
@@ -177,16 +181,13 @@ internal sealed class WorkdayProgressContext : ApplicationContext
                 return;
             }
 
-            PaceStatus paceStatus = DeterminePaceStatus(
+            PaceStatus paceStatus = UsageDisplay.DeterminePace(
                 usage.PercentUsed,
                 workdayPace.PercentElapsed);
 
             Color iconColor = GetPaceColor(paceStatus);
 
             SetIcon(displayedNumber, iconColor);
-
-            double difference =
-                usage.PercentUsed - workdayPace.PercentElapsed;
 
             string paceDescription = paceStatus switch
             {
@@ -208,11 +209,7 @@ internal sealed class WorkdayProgressContext : ApplicationContext
                 $"{workdayPace.PercentElapsed:F1}% {monthDescription} " +
                 $"({workdayPace.PassedWorkdays}/{workdayPace.TotalWorkdays})";
 
-            _paceMenuItem.Text =
-                $"{Math.Abs(difference):F1} points {paceDescription}";
-
             _workMonthMenuItem.Visible = true;
-            _paceMenuItem.Visible = true;
 
             // Keep this short because Windows limits tray tooltip length.
             _trayIcon.Text =
@@ -224,7 +221,6 @@ internal sealed class WorkdayProgressContext : ApplicationContext
                 $"Refresh failed: {exception.Message}";
 
             _workMonthMenuItem.Visible = false;
-            _paceMenuItem.Visible = false;
 
             _trayIcon.Text = "Copilot usage refresh failed";
 
@@ -255,11 +251,6 @@ internal sealed class WorkdayProgressContext : ApplicationContext
             lines.Add(_workMonthMenuItem.Text ?? string.Empty);
         }
 
-        if (_paceMenuItem.Visible)
-        {
-            lines.Add(_paceMenuItem.Text ?? string.Empty);
-        }
-
         return string.Join(Environment.NewLine, lines);
     }
 
@@ -274,23 +265,11 @@ internal sealed class WorkdayProgressContext : ApplicationContext
         oldIcon?.Dispose();
     }
 
-    private static PaceStatus DeterminePaceStatus(
-        double usagePercent,
-        double workdayPercent)
+    private void SaveSettings()
     {
-        double difference = usagePercent - workdayPercent;
-
-        if (difference > YellowBandPercentagePoints)
-        {
-            return PaceStatus.OverPace;
-        }
-
-        if (difference >= -YellowBandPercentagePoints)
-        {
-            return PaceStatus.OnPace;
-        }
-
-        return PaceStatus.UnderPace;
+        AppSettings.Save(new AppSettings(
+            _weekdaysOnlyMenuItem.Checked,
+            _showActualUsageMenuItem.Checked));
     }
 
     private static Color GetPaceColor(PaceStatus status)
@@ -661,74 +640,6 @@ internal static class NumberIcon
         }
     }
 }
-
-
-internal sealed record AppSettings(bool WeekdaysOnly)
-{
-    private static string SettingsPath =>
-        Path.Combine(
-            Environment.GetFolderPath(
-                Environment.SpecialFolder.LocalApplicationData),
-            "CopilotPace",
-            "settings.json");
-
-    public static AppSettings Load()
-    {
-        try
-        {
-            if (!File.Exists(SettingsPath))
-            {
-                return new AppSettings(WeekdaysOnly: true);
-            }
-
-            string json = File.ReadAllText(SettingsPath);
-
-            AppSettings? settings =
-                JsonSerializer.Deserialize<AppSettings>(json);
-
-            return settings ??
-                new AppSettings(WeekdaysOnly: true);
-        }
-        catch
-        {
-            return new AppSettings(WeekdaysOnly: true);
-        }
-    }
-
-    public static void Save(AppSettings settings)
-    {
-        try
-        {
-            string? directory = Path.GetDirectoryName(SettingsPath);
-
-            if (!string.IsNullOrWhiteSpace(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            string json = JsonSerializer.Serialize(
-                settings,
-                new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-
-            File.WriteAllText(SettingsPath, json);
-        }
-        catch
-        {
-            // The toggle still works for the current session.
-        }
-    }
-}
-
-internal enum PaceStatus
-{
-    UnderPace,
-    OnPace,
-    OverPace
-}
-
 internal readonly record struct WorkdayPace(
     int PassedWorkdays,
     int TotalWorkdays,
