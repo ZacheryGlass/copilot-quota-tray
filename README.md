@@ -63,6 +63,10 @@ Exit
 
 The app refreshes Copilot usage every five minutes.
 
+An exhausted quota is shown as 100% used rather than as a refresh failure.
+Accounts without an assigned premium quota and accounts with unlimited premium
+usage are shown as separate, neutral states without pace information.
+
 ## Requirements
 
 - Windows
@@ -115,6 +119,12 @@ Run it with:
 
 ```powershell
 .\publish\CopilotQuotaTray.exe
+```
+
+Run the quota response regression tests with:
+
+```powershell
+dotnet run --project .\tests\CopilotQuotaTray.Tests.csproj
 ```
 
 When installed, the app starts automatically with Windows. Windows may initially

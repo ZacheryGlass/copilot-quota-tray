@@ -110,11 +110,7 @@ internal sealed class WorkdayProgressContext : ApplicationContext
             await RefreshAsync();
 
             _trayIcon.BalloonTipTitle = "GitHub Copilot usage";
-            _trayIcon.BalloonTipText = string.Join(
-                Environment.NewLine,
-                _usageMenuItem.Text,
-                _workMonthMenuItem.Text,
-                _paceMenuItem.Text);
+            _trayIcon.BalloonTipText = GetBalloonTipText();
             _trayIcon.ShowBalloonTip(3000);
         };
 
@@ -150,26 +146,43 @@ internal sealed class WorkdayProgressContext : ApplicationContext
                 DateTime.Today,
                 weekdaysOnly: _weekdaysOnlyMenuItem.Checked);
 
+            int displayedNumber = (int)Math.Round(
+                workdayPace.PercentElapsed,
+                MidpointRounding.AwayFromZero);
+
+            if (usage.Status != CopilotQuotaStatus.Metered)
+            {
+                SetIcon(displayedNumber, Color.Gray);
+
+                _usageMenuItem.Text = usage.Status switch
+                {
+                    CopilotQuotaStatus.Unlimited =>
+                        "Copilot premium usage is unlimited",
+                    CopilotQuotaStatus.Unavailable =>
+                        "No Copilot premium quota assigned",
+                    _ => "Copilot premium quota unavailable"
+                };
+
+                _workMonthMenuItem.Visible = false;
+                _paceMenuItem.Visible = false;
+
+                _trayIcon.Text = usage.Status switch
+                {
+                    CopilotQuotaStatus.Unlimited =>
+                        "Copilot premium usage: unlimited",
+                    _ => "Copilot premium quota: not assigned"
+                };
+
+                return;
+            }
+
             PaceStatus paceStatus = DeterminePaceStatus(
                 usage.PercentUsed,
                 workdayPace.PercentElapsed);
 
             Color iconColor = GetPaceColor(paceStatus);
 
-            int displayedNumber = (int)Math.Round(
-                workdayPace.PercentElapsed,
-                MidpointRounding.AwayFromZero);
-
-            Icon newIcon = NumberIcon.Create(
-                displayedNumber,
-                iconColor);
-
-            Icon? oldIcon = _currentIcon;
-
-            _currentIcon = newIcon;
-            _trayIcon.Icon = newIcon;
-
-            oldIcon?.Dispose();
+            SetIcon(displayedNumber, iconColor);
 
             double difference =
                 usage.PercentUsed - workdayPace.PercentElapsed;
@@ -218,6 +231,37 @@ internal sealed class WorkdayProgressContext : ApplicationContext
         {
             _refreshInProgress = false;
         }
+    }
+
+    private string GetBalloonTipText()
+    {
+        var lines = new List<string>
+        {
+            _usageMenuItem.Text ?? string.Empty
+        };
+
+        if (_workMonthMenuItem.Visible)
+        {
+            lines.Add(_workMonthMenuItem.Text ?? string.Empty);
+        }
+
+        if (_paceMenuItem.Visible)
+        {
+            lines.Add(_paceMenuItem.Text ?? string.Empty);
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private void SetIcon(int number, Color color)
+    {
+        Icon newIcon = NumberIcon.Create(number, color);
+        Icon? oldIcon = _currentIcon;
+
+        _currentIcon = newIcon;
+        _trayIcon.Icon = newIcon;
+
+        oldIcon?.Dispose();
     }
 
     private static PaceStatus DeterminePaceStatus(
@@ -341,79 +385,7 @@ internal static class CopilotClient
             throw new InvalidOperationException(message);
         }
 
-        using JsonDocument document = JsonDocument.Parse(output);
-
-        if (!document.RootElement.TryGetProperty(
-                "quota_snapshots",
-                out JsonElement snapshots) ||
-            !snapshots.TryGetProperty(
-                "premium_interactions",
-                out JsonElement quota))
-        {
-            throw new InvalidOperationException(
-                "GitHub did not return the premium_interactions quota.");
-        }
-
-        if (quota.TryGetProperty(
-                "has_quota",
-                out JsonElement hasQuotaElement) &&
-            hasQuotaElement.ValueKind == JsonValueKind.False)
-        {
-            throw new InvalidOperationException(
-                "GitHub reports that this account has no Copilot quota.");
-        }
-
-        double creditsUsed = ReadRequiredNumber(
-            quota,
-            "credits_used");
-
-        double entitlement = ReadRequiredNumber(
-            quota,
-            "entitlement");
-
-        double percentUsed;
-
-        if (quota.TryGetProperty(
-                "percent_remaining",
-                out JsonElement percentRemainingElement) &&
-            percentRemainingElement.TryGetDouble(
-                out double percentRemaining))
-        {
-            percentUsed = 100.0 - percentRemaining;
-        }
-        else
-        {
-            if (entitlement <= 0)
-            {
-                throw new InvalidOperationException(
-                    "GitHub returned an invalid Copilot entitlement.");
-            }
-
-            percentUsed = creditsUsed * 100.0 / entitlement;
-        }
-
-        percentUsed = Math.Max(0.0, percentUsed);
-
-        return new CopilotUsage(
-            creditsUsed,
-            entitlement,
-            percentUsed);
-    }
-
-    private static double ReadRequiredNumber(
-        JsonElement parent,
-        string propertyName)
-    {
-        if (!parent.TryGetProperty(
-                propertyName,
-                out JsonElement element) ||
-            !element.TryGetDouble(out double value))
-        {
-            throw new InvalidOperationException(
-                $"GitHub did not return a valid {propertyName} value.");
-        }
-
-        return value;
+        return CopilotUsageParser.Parse(output);
     }
 
     private static string FindGhExecutable()
@@ -748,11 +720,6 @@ internal enum PaceStatus
     OnPace,
     OverPace
 }
-
-internal readonly record struct CopilotUsage(
-    double CreditsUsed,
-    double Entitlement,
-    double PercentUsed);
 
 internal readonly record struct WorkdayPace(
     int PassedWorkdays,
