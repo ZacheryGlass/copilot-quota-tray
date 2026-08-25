@@ -127,10 +127,11 @@ internal sealed class WorkdayProgressContext : ApplicationContext
         _timer.Start();
 
         // Run the first refresh immediately.
-        _ = RefreshAsync();
+        _ = RefreshAsync(showSetupNotification: true);
     }
 
-    private async Task RefreshAsync()
+    private async Task RefreshAsync(
+        bool showSetupNotification = false)
     {
         if (_refreshInProgress)
         {
@@ -226,6 +227,15 @@ internal sealed class WorkdayProgressContext : ApplicationContext
             _paceMenuItem.Visible = false;
 
             _trayIcon.Text = "Copilot usage refresh failed";
+
+            if (showSetupNotification &&
+                exception is CopilotConfigurationException)
+            {
+                _trayIcon.BalloonTipTitle =
+                    "Copilot Quota Tray setup needed";
+                _trayIcon.BalloonTipText = exception.Message;
+                _trayIcon.ShowBalloonTip(5000);
+            }
         }
         finally
         {
@@ -339,9 +349,9 @@ internal static class CopilotClient
         }
         catch (System.ComponentModel.Win32Exception exception)
         {
-            throw new InvalidOperationException(
-                "Could not find gh.exe. Make sure GitHub CLI is installed " +
-                "and available in PATH.",
+            throw new CopilotConfigurationException(
+                "GitHub CLI was not found. Install it or add gh.exe to " +
+                "PATH, then restart the app.",
                 exception);
         }
 
@@ -378,11 +388,9 @@ internal static class CopilotClient
 
         if (process.ExitCode != 0)
         {
-            string message = string.IsNullOrWhiteSpace(error)
-                ? $"gh.exe exited with code {process.ExitCode}."
-                : error.Trim();
-
-            throw new InvalidOperationException(message);
+            throw GitHubCliFailure.FromExit(
+                process.ExitCode,
+                error);
         }
 
         return CopilotUsageParser.Parse(output);

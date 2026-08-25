@@ -174,7 +174,9 @@ If GitHub CLI is unavailable, unauthenticated, or the request fails:
 
 - The app keeps the last successfully displayed value.
 - On first launch, it initially shows a gray `0`.
-- The tray menu displays the refresh error.
+- A missing or unauthenticated GitHub CLI produces a one-time setup notification
+  at startup with an actionable message.
+- The tray menu displays the detailed refresh error.
 - The app retries automatically every five minutes.
 
 ## Important limitation

@@ -8,7 +8,10 @@ var tests = new (string Name, Action Run)[]
     ("no entitlement without numeric fields", NoEntitlementWithoutNumbers),
     ("unlimited quota", UnlimitedQuota),
     ("overage", Overage),
-    ("missing quota data", MissingQuotaData)
+    ("missing quota data", MissingQuotaData),
+    ("not signed in", NotSignedIn),
+    ("expired credentials", ExpiredCredentials),
+    ("unrelated CLI failure", UnrelatedCliFailure)
 };
 
 int failures = 0;
@@ -125,6 +128,38 @@ static void MissingQuotaData()
         CopilotUsageParser.Parse("""{"quota_snapshots": {}}"""));
 }
 
+static void NotSignedIn()
+{
+    InvalidOperationException exception = GitHubCliFailure.FromExit(
+        1,
+        "To get started with GitHub CLI, please run: gh auth login");
+
+    Equal(typeof(CopilotConfigurationException), exception.GetType());
+    Contains("gh auth login", exception.Message);
+}
+
+static void ExpiredCredentials()
+{
+    InvalidOperationException exception = GitHubCliFailure.FromExit(
+        1,
+        "gh: Bad credentials (HTTP 401)");
+
+    Equal(typeof(CopilotConfigurationException), exception.GetType());
+    Contains("not authenticated", exception.Message);
+}
+
+static void UnrelatedCliFailure()
+{
+    const string error = "gh: request timed out";
+
+    InvalidOperationException exception = GitHubCliFailure.FromExit(
+        1,
+        error);
+
+    Equal(typeof(InvalidOperationException), exception.GetType());
+    Equal(error, exception.Message);
+}
+
 static CopilotUsage ParseQuota(string quota)
 {
     return CopilotUsageParser.Parse($$"""
@@ -151,6 +186,15 @@ static void CloseTo(double expected, double actual)
     {
         throw new InvalidOperationException(
             $"Expected {expected}, but got {actual}.");
+    }
+}
+
+static void Contains(string expected, string actual)
+{
+    if (!actual.Contains(expected, StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            $"Expected '{actual}' to contain '{expected}'.");
     }
 }
 
